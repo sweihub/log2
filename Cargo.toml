@@ -1,9 +1,11 @@
 [package]
 name = "log2"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+description = "log2 is an out-of-the-box logging library for Rust"
+license = "MIT"
+repository = "https://github.com/sweihub/log2"
+documentation = "https://docs.rs/log2"
 
 [dependencies]
 chrono = "0.4.26"
