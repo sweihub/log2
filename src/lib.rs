@@ -66,21 +66,25 @@ impl Log2 {
         }
     }
 
+    // split the output to stdout
     pub fn tee(mut self, stdout: bool) -> Log2 {
         self.tee = stdout;
         self
     }
 
+    /// setup the maximum size for each file
     pub fn size(mut self, filesize: u64) -> Log2 {
         self.filesize = filesize;
         self
     }
 
+    /// setup the rotate count
     pub fn rotate(mut self, count: usize) -> Log2 {
         self.count = count;
         self
     }
 
+    /// start the log2 instance
     pub fn start(self) -> Handle {
         start_log2(self)
     }
@@ -90,7 +94,7 @@ unsafe impl Sync for Log2 {}
 
 impl log::Log for Log2 {
     fn enabled(&self, metadata: &Metadata) -> bool {
-        metadata.level() >= Level::Debug
+        metadata.level() >= Level::Trace
     }
 
     fn log(&self, record: &Record) {
@@ -117,7 +121,6 @@ impl log::Log for Log2 {
     }
 
     fn flush(&self) {
-        println!("flush now");
         let _ = self.tx.send(Action::Flush);
     }
 }
@@ -138,8 +141,6 @@ impl Drop for Handle {
 }
 
 fn rotate(ctx: &Context) -> Result<std::fs::File, std::io::Error> {
-    // log.txt, log.1.txt, log.2.txt, ..., log.9.txt
-
     let size = std::fs::metadata(&ctx.path)?.len();
     let dot = ctx.path.rfind(".").unwrap_or(0);
     let mut suffix = "";
