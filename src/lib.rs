@@ -284,7 +284,5 @@ fn start_log2(mut logger: Log2) -> Handle {
     log::set_boxed_logger(Box::new(logger)).expect("error to initialize log2");
     log::set_max_level(LevelFilter::Trace);
 
-    println!("start_log2: module: {}", module_path!());
-
     return handle;
 }
