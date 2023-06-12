@@ -75,13 +75,20 @@ impl Log2 {
 
     /// setup the maximum size for each file
     pub fn size(mut self, filesize: u64) -> Log2 {
-        self.filesize = filesize;
+        if self.count <= 1 {
+            self.filesize = std::u64::MAX;
+        } else {
+            self.filesize = filesize;
+        }
         self
     }
 
     /// setup the rotate count
     pub fn rotate(mut self, count: usize) -> Log2 {
         self.count = count;
+        if self.count <= 1 {
+            self.filesize = std::u64::MAX;
+        }
         self
     }
 
@@ -100,7 +107,7 @@ impl log::Log for Log2 {
     }
 
     fn log(&self, record: &Record) {
-        // cheap way to ignore other crate with absolute file (UNIX)
+        // cheap way to ignore other crates with absolute files (UNIX)
         // TODO: filter by crate/module name?
         let file = record.file().unwrap_or("unknown");
         if file.starts_with("/") {
@@ -109,12 +116,12 @@ impl log::Log for Log2 {
 
         // stdout
         let level = &self.levels[record.level() as usize];
+        let open = "[".truecolor(0x87, 0x87, 0x87);
+        let close = "]".truecolor(0x87, 0x87, 0x87);
         if self.tee {
             let line = format!(
-                "{}{}{} [{}] {}",
-                "[".truecolor(0x9a, 0x9a, 0x9a),
+                "{open}{}{close} {open}{}{close} {}",
                 Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
-                "]".truecolor(0x9a, 0x9a, 0x9a),
                 level,
                 record.args()
             );
