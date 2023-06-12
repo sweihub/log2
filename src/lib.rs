@@ -190,42 +190,58 @@ fn now() -> u64 {
 }
 
 fn worker(ctx: Context) -> Result<(), std::io::Error> {
-    let mut file = rotate(&ctx)?;
-    let mut size = file.metadata()?.len();
+    let mut target: Option<std::fs::File> = None;
+    let mut size: u64 = 0;
+    let mut last = size;
+
+    if ctx.path.len() > 0 {
+        let file = rotate(&ctx)?;
+        size = file.metadata()?.len();
+        target = Some(file);
+    }
+
     let timeout = std::time::Duration::from_secs(1);
     let mut ts = now();
-    let mut last = size;
 
     loop {
         if let Ok(action) = ctx.rx.recv_timeout(timeout) {
             match action {
                 Action::Write(line) => {
+                    let file = target.as_mut().unwrap();
                     let buf = line.as_bytes();
                     file.write_all(buf)?;
                     size += buf.len() as u64;
                     if size >= ctx.size {
                         drop(file);
-                        file = rotate(&ctx)?;
-                        size = file.metadata()?.len();
+                        let f = rotate(&ctx)?;
+                        size = f.metadata()?.len();
+                        target = Some(f);
                     }
                 }
                 Action::Tee(line) => {
                     println!("{line}");
                 }
                 Action::Flush => {
-                    file.flush()?;
+                    if target.is_some() {
+                        let file = target.as_mut().unwrap();
+                        file.flush()?;
+                    }
                 }
                 Action::Exit => {
-                    file.flush()?;
+                    if target.is_some() {
+                        let file = target.as_mut().unwrap();
+                        file.flush()?;
+                    }
                     break;
                 }
             }
         }
         // flush every 1s
-        if size > last {
+        if size > last && target.is_some() {
             let n = now();
             if n - ts >= 1 {
                 ts = n;
+                let file = target.as_mut().unwrap();
                 file.flush()?;
                 last = size;
             }
@@ -277,14 +293,13 @@ fn start_log2(mut logger: Log2) -> Handle {
         thread: None,
     };
 
-    if ctx.path.len() > 0 {
-        let thread = std::thread::spawn(move || {
-            if let Err(message) = worker(ctx) {
-                println!("error: {message}");
-            }
-        });
-        handle.thread = Some(thread);
-    }
+    let thread = std::thread::spawn(move || {
+        if let Err(message) = worker(ctx) {
+            println!("error: {message}");
+        }
+    });
+
+    handle.thread = Some(thread);
 
     log::set_boxed_logger(Box::new(logger)).expect("error to initialize log2");
     log::set_max_level(LevelFilter::Trace);

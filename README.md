@@ -16,7 +16,7 @@ cargo add log2
 use log2:*;
 
 fn main() {
-    log2::start();
+    let _log2 = log2::start();
 
     trace!("send order request to server");
     debug!("receive order response");
