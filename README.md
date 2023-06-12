@@ -13,7 +13,7 @@ cargo add log2
 ## Log to stdout
 
 ```rust
-use log2:*;
+use log2::*;
 
 fn main() {
     let _log2 = log2::start();
@@ -22,7 +22,7 @@ fn main() {
     debug!("receive order response");
     info!("order was executed");
     warn!("network speed is slow");
-    error!("network connection as broken");
+    error!("network connection was broken");
 }
 ```
 
@@ -33,7 +33,7 @@ Output
 ## Log to file
 
 `log2` with default file size 50MB, max file count 10, you can change as you like. Note the `_log2` will 
-stop the log2 when it is out the scope.
+stop the log2 instance when it is out of the scope.
 
 ```rust
 use log2::*;
@@ -55,7 +55,7 @@ fn main() {
     debug!("receive order response");
     info!("order was executed");
     warn!("network speed is slow");
-    error!("network connection as broken");
+    error!("network connection was broken");
 }
 
 ```
