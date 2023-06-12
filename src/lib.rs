@@ -115,10 +115,10 @@ impl log::Log for Log2 {
         }
 
         // stdout
-        let level = &self.levels[record.level() as usize];
-        let open = "[".truecolor(0x87, 0x87, 0x87);
-        let close = "]".truecolor(0x87, 0x87, 0x87);
         if self.tee {
+            let level = &self.levels[record.level() as usize];
+            let open = "[".truecolor(0x87, 0x87, 0x87);
+            let close = "]".truecolor(0x87, 0x87, 0x87);
             let line = format!(
                 "{open}{}{close} {open}{}{close} {}",
                 Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
