@@ -17,6 +17,7 @@ pub fn set_level(level: level) {
 
 enum Action {
     Write(String),
+    Tee(String),
     Flush,
     Exit,
 }
@@ -109,7 +110,7 @@ impl log::Log for Log2 {
         // stdout
         let level = &self.levels[record.level() as usize];
         if self.tee {
-            println!(
+            let line = format!(
                 "{}{}{} [{}] {}",
                 "[".truecolor(0x9a, 0x9a, 0x9a),
                 Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
@@ -117,6 +118,7 @@ impl log::Log for Log2 {
                 level,
                 record.args()
             );
+            let _ = self.tx.send(Action::Tee(line));
         }
 
         // file
@@ -206,6 +208,9 @@ fn worker(ctx: Context) -> Result<(), std::io::Error> {
                         file = rotate(&ctx)?;
                         size = file.metadata()?.len();
                     }
+                }
+                Action::Tee(line) => {
+                    println!("{line}");
                 }
                 Action::Flush => {
                     file.flush()?;
