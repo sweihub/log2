@@ -94,10 +94,19 @@ unsafe impl Sync for Log2 {}
 
 impl log::Log for Log2 {
     fn enabled(&self, metadata: &Metadata) -> bool {
-        metadata.level() >= Level::Trace
+        // this seems no effect at all
+        metadata.level() <= Level::Trace
     }
 
     fn log(&self, record: &Record) {
+        // cheap way to ignore other crate with absolute file (UNIX)
+        // TODO: filter by crate/module name?
+        let file = record.file().unwrap_or("unknown");
+        if file.starts_with("/") {
+            return;
+        }
+
+        // stdout
         let level = &self.levels[record.level() as usize];
         if self.tee {
             println!(
@@ -109,6 +118,8 @@ impl log::Log for Log2 {
                 record.args()
             );
         }
+
+        // file
         if self.path.len() > 0 {
             let line = format!(
                 "[{}] [{}] {}\n",
@@ -228,6 +239,13 @@ pub fn start() -> Handle {
 
 /// log to file
 pub fn open(path: &str) -> Log2 {
+    // create directory
+    let dir = std::path::Path::new(path);
+    if let Some(dir) = dir.parent() {
+        let _ = std::fs::create_dir_all(&dir);
+    }
+
+    // check file, panic if error
     std::fs::OpenOptions::new()
         .create(true)
         .append(true)
@@ -265,6 +283,8 @@ fn start_log2(mut logger: Log2) -> Handle {
 
     log::set_boxed_logger(Box::new(logger)).expect("error to initialize log2");
     log::set_max_level(LevelFilter::Trace);
+
+    println!("start_log2: module: {}", module_path!());
 
     return handle;
 }
