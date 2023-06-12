@@ -1,8 +1,8 @@
 use log2::*;
 
 #[test]
-fn log_to_stdout() {
-    let _log2 = log2::start();
+fn log_to_file() {
+    let _log2 = log2::open("log.txt").tee(true).start();
     trace!("send order request to server");
     debug!("receive order response");
     info!("order was executed");
