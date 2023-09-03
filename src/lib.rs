@@ -1,5 +1,6 @@
 use chrono::Local;
 use colored::*;
+use core::fmt;
 use log::{Level, LevelFilter, Metadata, Record};
 use std::{io::Write, thread::JoinHandle};
 
@@ -10,9 +11,22 @@ pub use log::{debug, error, info, trace, warn};
 #[allow(non_camel_case_types)]
 pub type level = LevelFilter;
 
-/// set the log level
-pub fn set_level(level: level) {
-    log::set_max_level(level);
+fn get_level(level: String) -> LevelFilter {
+    let level = level.to_lowercase();
+    match &*level {
+        "debug" => level::Debug,
+        "trace" => level::Trace,
+        "info" => level::Info,
+        "warn" => level::Warn,
+        "error" => level::Error,
+        "off" => level::Off,
+        _ => level::Debug,
+    }
+}
+
+/// set the log level, the input can be both enum or name
+pub fn set_level<T: fmt::Display>(level: T) {
+    log::set_max_level(get_level(level.to_string()));
 }
 
 enum Action {
@@ -37,6 +51,7 @@ pub struct Log2 {
     module: bool,
     filesize: u64,
     count: usize,
+    level: String,
 }
 
 struct Context {
@@ -66,6 +81,7 @@ impl Log2 {
             module: true,
             filesize: 50 * 1024 * 1024,
             count: 10,
+            level: String::new(),
         }
     }
 
@@ -99,9 +115,19 @@ impl Log2 {
         self
     }
 
+    pub fn level<T: fmt::Display>(mut self, name: T) -> Self {
+        self.level = name.to_string();
+        self
+    }
+
     /// start the log2 instance
     pub fn start(self) -> Handle {
-        start_log2(self)
+        let n = self.level.clone();
+        let handle = start_log2(self);
+        if !n.is_empty() {
+            set_level(n);
+        }
+        handle
     }
 }
 
@@ -167,6 +193,10 @@ impl Handle {
             let _ = self.tx.send(Action::Exit);
             let _ = thread.join();
         }
+    }
+
+    pub fn set_level<T: fmt::Display>(&self, level: T) {
+        crate::set_level(level);
     }
 }
 
