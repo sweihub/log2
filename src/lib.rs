@@ -34,6 +34,7 @@ pub struct Log2 {
     levels: [ColoredString; 6],
     path: String,
     tee: bool,
+    module: bool,
     filesize: u64,
     count: usize,
 }
@@ -62,9 +63,15 @@ impl Log2 {
             levels,
             path: String::new(),
             tee: false,
+            module: true,
             filesize: 50 * 1024 * 1024,
             count: 10,
         }
+    }
+
+    pub fn module(mut self, show: bool) -> Log2 {
+        self.module = show;
+        self
     }
 
     // split the output to stdout
@@ -103,7 +110,7 @@ unsafe impl Sync for Log2 {}
 impl log::Log for Log2 {
     fn enabled(&self, metadata: &Metadata) -> bool {
         // this seems no effect at all
-        metadata.level() <= Level::Trace
+        metadata.level() >= Level::Error
     }
 
     fn log(&self, record: &Record) {
@@ -114,13 +121,22 @@ impl log::Log for Log2 {
             return;
         }
 
+        let mut module = "".into();
+        if self.module {
+            if file.starts_with("src/") && file.ends_with(".rs") {
+                module = format!("{}: ", &file[4..file.len() - 3]);
+            } else {
+                module = format!("{file}: ");
+            }
+        }
+
         // stdout
         if self.tee {
             let level = &self.levels[record.level() as usize];
             let open = "[".truecolor(0x87, 0x87, 0x87);
             let close = "]".truecolor(0x87, 0x87, 0x87);
             let line = format!(
-                "{open}{}{close} {open}{}{close} {}",
+                "{open}{}{close} {open}{}{close} {module}{}",
                 Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
                 level,
                 record.args()
@@ -131,7 +147,7 @@ impl log::Log for Log2 {
         // file
         if self.path.len() > 0 {
             let line = format!(
-                "[{}] [{}] {}\n",
+                "[{}] [{}] {module}{}\n",
                 Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
                 record.level(),
                 record.args()
@@ -219,7 +235,6 @@ fn worker(ctx: Context) -> Result<(), std::io::Error> {
                     file.write_all(buf)?;
                     size += buf.len() as u64;
                     if size >= ctx.size {
-                        drop(file);
                         let f = rotate(&ctx)?;
                         size = f.metadata()?.len();
                         target = Some(f);
@@ -258,11 +273,18 @@ fn worker(ctx: Context) -> Result<(), std::io::Error> {
     Ok(())
 }
 
-/// start the log2 instance
+/// start the log2 instance by default
 pub fn start() -> Handle {
     let mut logger = Log2::new();
     logger.tee = true;
     start_log2(logger)
+}
+
+/// create a log2 instance to stdout
+pub fn stdout() -> Log2 {
+    let mut logger = Log2::new();
+    logger.tee = true;
+    logger
 }
 
 /// log to file
