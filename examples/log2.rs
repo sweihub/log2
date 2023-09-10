@@ -1,8 +1,10 @@
 use log2::*;
 
-#[test]
-fn log_to_stdout() {
-    let _log2 = log2::start();
+fn main() {
+    let _log2 = log2::stdout().module(true).level("warn").start();
+    log2::set_level(log2::level::Info);
+    log2::set_level("debug");
+    _log2.set_level("trace");
     trace!("send order request to server");
     debug!("receive order response");
     info!("order was executed");

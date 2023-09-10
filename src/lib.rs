@@ -1,5 +1,6 @@
 use chrono::Local;
 use colored::*;
+use core::fmt;
 use log::{Level, LevelFilter, Metadata, Record};
 use std::{io::Write, thread::JoinHandle};
 
@@ -10,9 +11,22 @@ pub use log::{debug, error, info, trace, warn};
 #[allow(non_camel_case_types)]
 pub type level = LevelFilter;
 
-/// set the log level
-pub fn set_level(level: level) {
-    log::set_max_level(level);
+fn get_level(level: String) -> LevelFilter {
+    let level = level.to_lowercase();
+    match &*level {
+        "debug" => level::Debug,
+        "trace" => level::Trace,
+        "info" => level::Info,
+        "warn" => level::Warn,
+        "error" => level::Error,
+        "off" => level::Off,
+        _ => level::Debug,
+    }
+}
+
+/// set the log level, the input can be both enum or name
+pub fn set_level<T: fmt::Display>(level: T) {
+    log::set_max_level(get_level(level.to_string()));
 }
 
 enum Action {
@@ -34,8 +48,10 @@ pub struct Log2 {
     levels: [ColoredString; 6],
     path: String,
     tee: bool,
+    module: bool,
     filesize: u64,
     count: usize,
+    level: String,
 }
 
 struct Context {
@@ -62,9 +78,16 @@ impl Log2 {
             levels,
             path: String::new(),
             tee: false,
+            module: true,
             filesize: 50 * 1024 * 1024,
             count: 10,
+            level: String::new(),
         }
+    }
+
+    pub fn module(mut self, show: bool) -> Log2 {
+        self.module = show;
+        self
     }
 
     // split the output to stdout
@@ -75,19 +98,36 @@ impl Log2 {
 
     /// setup the maximum size for each file
     pub fn size(mut self, filesize: u64) -> Log2 {
-        self.filesize = filesize;
+        if self.count <= 1 {
+            self.filesize = std::u64::MAX;
+        } else {
+            self.filesize = filesize;
+        }
         self
     }
 
     /// setup the rotate count
     pub fn rotate(mut self, count: usize) -> Log2 {
         self.count = count;
+        if self.count <= 1 {
+            self.filesize = std::u64::MAX;
+        }
+        self
+    }
+
+    pub fn level<T: fmt::Display>(mut self, name: T) -> Self {
+        self.level = name.to_string();
         self
     }
 
     /// start the log2 instance
     pub fn start(self) -> Handle {
-        start_log2(self)
+        let n = self.level.clone();
+        let handle = start_log2(self);
+        if !n.is_empty() {
+            set_level(n);
+        }
+        handle
     }
 }
 
@@ -96,25 +136,34 @@ unsafe impl Sync for Log2 {}
 impl log::Log for Log2 {
     fn enabled(&self, metadata: &Metadata) -> bool {
         // this seems no effect at all
-        metadata.level() <= Level::Trace
+        metadata.level() >= Level::Error
     }
 
     fn log(&self, record: &Record) {
-        // cheap way to ignore other crate with absolute file (UNIX)
+        // cheap way to ignore other crates with absolute files (UNIX)
         // TODO: filter by crate/module name?
         let file = record.file().unwrap_or("unknown");
         if file.starts_with("/") {
             return;
         }
 
+        let mut module = "".into();
+        if self.module {
+            if file.starts_with("src/") && file.ends_with(".rs") {
+                module = format!("{}: ", &file[4..file.len() - 3]);
+            } else {
+                module = format!("{file}: ");
+            }
+        }
+
         // stdout
-        let level = &self.levels[record.level() as usize];
         if self.tee {
+            let level = &self.levels[record.level() as usize];
+            let open = "[".truecolor(0x87, 0x87, 0x87);
+            let close = "]".truecolor(0x87, 0x87, 0x87);
             let line = format!(
-                "{}{}{} [{}] {}",
-                "[".truecolor(0x9a, 0x9a, 0x9a),
+                "{open}{}{close} {open}{}{close} {module}{}",
                 Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
-                "]".truecolor(0x9a, 0x9a, 0x9a),
                 level,
                 record.args()
             );
@@ -124,7 +173,7 @@ impl log::Log for Log2 {
         // file
         if self.path.len() > 0 {
             let line = format!(
-                "[{}] [{}] {}\n",
+                "[{}] [{}] {module}{}\n",
                 Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
                 record.level(),
                 record.args()
@@ -144,6 +193,10 @@ impl Handle {
             let _ = self.tx.send(Action::Exit);
             let _ = thread.join();
         }
+    }
+
+    pub fn set_level<T: fmt::Display>(&self, level: T) {
+        crate::set_level(level);
     }
 }
 
@@ -212,7 +265,6 @@ fn worker(ctx: Context) -> Result<(), std::io::Error> {
                     file.write_all(buf)?;
                     size += buf.len() as u64;
                     if size >= ctx.size {
-                        drop(file);
                         let f = rotate(&ctx)?;
                         size = f.metadata()?.len();
                         target = Some(f);
@@ -251,11 +303,18 @@ fn worker(ctx: Context) -> Result<(), std::io::Error> {
     Ok(())
 }
 
-/// start the log2 instance
+/// start the log2 instance by default
 pub fn start() -> Handle {
     let mut logger = Log2::new();
     logger.tee = true;
     start_log2(logger)
+}
+
+/// create a log2 instance to stdout
+pub fn stdout() -> Log2 {
+    let mut logger = Log2::new();
+    logger.tee = true;
+    logger
 }
 
 /// log to file
