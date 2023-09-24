@@ -32,7 +32,7 @@ Output
 
 ## Log to file
 
-`log2` with default file size 50MB, max file count 10, you can change as you like. Note the `_log2` will 
+`log2` with default file size 100MB, max file count 10, you can change as you like. Note the `_log2` will 
 stop the log2 instance when it is out of the scope.
 
 ```rust
