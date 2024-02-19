@@ -1,6 +1,6 @@
 [package]
 name = "log2"
-version = "0.1.9"
+version = "0.1.10"
 edition = "2021"
 description = "log2 is an out-of-the-box logging library for Rust"
 license = "MIT"
@@ -11,3 +11,6 @@ documentation = "https://docs.rs/log2"
 chrono = "0.4.26"
 colored = "2.0.0"
 log = { version = "0.4.18", features = ["std"] }
+
+[lib]
+doctest = false
