@@ -247,10 +247,15 @@ impl log::Log for Log2 {
             return;
         }
 
+        // module
         let mut module = "".into();
         if self.module {
-            if file.starts_with("src/") && file.ends_with(".rs") {
-                module = format!("{}: ", &file[4..file.len() - 3]);
+            if file.starts_with("src/") {
+                if file.ends_with("/mod.rs") {
+                    module = format!("{}: ", &file[4..file.len() - 7]);
+                } else if file.ends_with(".rs") {
+                    module = format!("{}: ", &file[4..file.len() - 3]);
+                }
             } else {
                 module = format!("{file}: ");
             }
