@@ -141,7 +141,6 @@ pub struct Handle {
     tx: std::sync::mpsc::Sender<Action>,
     thread: Option<JoinHandle<()>>,
 }
-
 pub struct Log2 {
     tx: std::sync::mpsc::Sender<Action>,
     rx: Option<std::sync::mpsc::Receiver<Action>>,
@@ -228,6 +227,11 @@ impl Log2 {
             set_level(n);
         }
         handle
+    }
+
+    pub fn set_path(mut self, file: String) -> Log2 {
+        self.path = file;
+        self
     }
 }
 
