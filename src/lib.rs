@@ -102,7 +102,7 @@ use chrono::Local;
 use colored::*;
 use core::fmt;
 use log::{Level, LevelFilter, Metadata, Record};
-use std::{io::Write, thread::JoinHandle};
+use std::{fs, io::Write, thread::JoinHandle};
 
 /// log macros
 pub use log::{debug, error, info, trace, warn};
@@ -134,6 +134,7 @@ enum Action {
     Tee(String),
     Flush,
     Exit,
+    Update(String),
 }
 
 /// handle for terminating log2
@@ -141,6 +142,7 @@ pub struct Handle {
     tx: std::sync::mpsc::Sender<Action>,
     thread: Option<JoinHandle<()>>,
 }
+
 pub struct Log2 {
     tx: std::sync::mpsc::Sender<Action>,
     rx: Option<std::sync::mpsc::Receiver<Action>>,
@@ -307,6 +309,13 @@ impl Handle {
     pub fn set_level<T: fmt::Display>(&self, level: T) {
         crate::set_level(level);
     }
+
+    pub fn update(&mut self, path: String) {
+        if let Some(thread) = self.thread.take() {
+            let _ = self.tx.send(Action::Update(path));
+            let _ = thread.join();
+        }
+    }
 }
 
 impl Drop for Handle {
@@ -394,6 +403,9 @@ fn worker(ctx: Context) -> Result<(), std::io::Error> {
                         file.flush()?;
                     }
                     break;
+                }
+                Action::Update(file) => {
+                    target = Some(fs::File::open(file).unwrap());
                 }
             }
         }
