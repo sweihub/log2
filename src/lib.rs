@@ -102,7 +102,7 @@ use chrono::Local;
 use colored::*;
 use core::fmt;
 use log::{Level, LevelFilter, Metadata, Record};
-use std::{fs, io::Write, thread::JoinHandle};
+use std::{fs::File, io::Write, thread::JoinHandle};
 
 /// log macros
 pub use log::{debug, error, info, trace, warn};
@@ -134,7 +134,7 @@ enum Action {
     Tee(String),
     Flush,
     Exit,
-    Update(String),
+    Update(File),
 }
 
 /// handle for terminating log2
@@ -310,7 +310,7 @@ impl Handle {
         crate::set_level(level);
     }
 
-    pub fn update(&mut self, path: String) {
+    pub fn update(&mut self, path: File) {
         if let Some(thread) = self.thread.take() {
             let _ = self.tx.send(Action::Update(path));
             let _ = thread.join();
@@ -405,7 +405,7 @@ fn worker(ctx: Context) -> Result<(), std::io::Error> {
                     break;
                 }
                 Action::Update(file) => {
-                    target = Some(fs::File::open(file).unwrap());
+                    target = Some(file);
                 }
             }
         }
