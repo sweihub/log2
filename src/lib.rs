@@ -311,10 +311,7 @@ impl Handle {
     }
 
     pub fn update(&mut self, path: File) {
-        if let Some(thread) = self.thread.take() {
-            let _ = self.tx.send(Action::Update(path));
-            let _ = thread.join();
-        }
+        let _ = self.tx.send(Action::Update(path));
     }
 }
 
