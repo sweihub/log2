@@ -230,11 +230,6 @@ impl Log2 {
         }
         handle
     }
-
-    pub fn set_path(mut self, file: String) -> Log2 {
-        self.path = file;
-        self
-    }
 }
 
 unsafe impl Sync for Log2 {}
