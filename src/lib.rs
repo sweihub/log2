@@ -134,7 +134,7 @@ enum Action {
     Tee(String),
     Flush,
     Exit,
-    Update(File),
+    Redirect(File),
 }
 
 /// handle for terminating log2
@@ -305,8 +305,8 @@ impl Handle {
         crate::set_level(level);
     }
 
-    pub fn update(&mut self, path: File) {
-        let _ = self.tx.send(Action::Update(path));
+    pub fn redirect(&mut self, path: File) {
+        let _ = self.tx.send(Action::Redirect(path));
     }
 }
 
@@ -396,7 +396,7 @@ fn worker(ctx: Context) -> Result<(), std::io::Error> {
                     }
                     break;
                 }
-                Action::Update(file) => {
+                Action::Redirect(file) => {
                     target = Some(file);
                 }
             }
