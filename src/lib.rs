@@ -102,7 +102,7 @@ use chrono::Local;
 use colored::*;
 use core::fmt;
 use log::{Level, LevelFilter, Metadata, Record};
-use std::{fs::File, io::Write, thread::JoinHandle};
+use std::{io::Write, thread::JoinHandle};
 
 /// log macros
 pub use log::{debug, error, info, trace, warn};
@@ -134,7 +134,7 @@ enum Action {
     Tee(String),
     Flush,
     Exit,
-    Redirect(File),
+    Redirect(String),
 }
 
 /// handle for terminating log2
@@ -305,7 +305,7 @@ impl Handle {
         crate::set_level(level);
     }
 
-    pub fn redirect(&mut self, path: File) {
+    pub fn redirect(&mut self, path: String) {
         let _ = self.tx.send(Action::Redirect(path));
     }
 }
@@ -352,7 +352,7 @@ fn now() -> u64 {
         .as_secs()
 }
 
-fn worker(ctx: Context) -> Result<(), std::io::Error> {
+fn worker(mut ctx: Context) -> Result<(), std::io::Error> {
     let mut target: Option<std::fs::File> = None;
     let mut size: u64 = 0;
     let mut last = size;
@@ -396,7 +396,10 @@ fn worker(ctx: Context) -> Result<(), std::io::Error> {
                     }
                     break;
                 }
-                Action::Redirect(file) => {
+                Action::Redirect(path) => {
+                    ctx.path = path;
+                    let file = rotate(&ctx)?;
+                    size = file.metadata()?.len();
                     target = Some(file);
                 }
             }
