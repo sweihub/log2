@@ -152,6 +152,7 @@ pub struct Log2 {
     filesize: u64,
     count: usize,
     level: String,
+    module_filter: Option<Box<dyn Fn(&str) -> bool + Send>>,
 }
 
 struct Context {
@@ -182,6 +183,7 @@ impl Log2 {
             filesize: 100 * 1024 * 1024,
             count: 10,
             level: String::new(),
+            module_filter: None,
         }
     }
 
@@ -215,6 +217,12 @@ impl Log2 {
         self
     }
 
+    /// provide a way to filter by module
+    pub fn module_filter(mut self, filter: impl Fn(&str) -> bool + Send + 'static) -> Log2 {
+        self.module_filter = Some(Box::new(filter));
+        self
+    }
+
     pub fn level<T: fmt::Display>(mut self, name: T) -> Self {
         self.level = name.to_string();
         self
@@ -240,17 +248,19 @@ impl log::Log for Log2 {
     }
 
     fn log(&self, record: &Record) {
-        // cheap way to ignore other crates with absolute files (UNIX)
-        // TODO: filter by crate/module name?
-        let file = record.file().unwrap_or("unknown");
-        if file.starts_with("/") {
-            return;
+        let module = record.module_path().unwrap_or("unknown");
+
+        // module filter
+        if let Some(filter) = &self.module_filter {
+            if !filter(module) {
+                return;
+            }
         }
 
         // module
-        let mut module = "".into();
+        let mut origin = record.file().unwrap_or("unknown").to_string();
         if self.module {
-            module = format!("[{}]", record.module_path().unwrap_or(&file));
+            origin = format!("[{}]", module);
         }
 
         // stdout
@@ -259,7 +269,7 @@ impl log::Log for Log2 {
             let open = "[".truecolor(0x87, 0x87, 0x87);
             let close = "]".truecolor(0x87, 0x87, 0x87);
             let line = format!(
-                "{open}{}{close} {open}{}{close} {module} {}",
+                "{open}{}{close} {open}{}{close} {origin} {}",
                 Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
                 level,
                 record.args()
@@ -270,7 +280,7 @@ impl log::Log for Log2 {
         // file
         if self.path.len() > 0 {
             let line = format!(
-                "[{}] [{}] {module}{}\n",
+                "[{}] [{}] {origin} {}\n",
                 Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
                 record.level(),
                 record.args()
