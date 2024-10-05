@@ -250,15 +250,7 @@ impl log::Log for Log2 {
         // module
         let mut module = "".into();
         if self.module {
-            if file.starts_with("src/") {
-                if file.ends_with("/mod.rs") {
-                    module = format!("{}: ", &file[4..file.len() - 7]);
-                } else if file.ends_with(".rs") {
-                    module = format!("{}: ", &file[4..file.len() - 3]);
-                }
-            } else {
-                module = format!("{file}: ");
-            }
+            module = format!("[{}]", record.module_path().unwrap_or(&file));
         }
 
         // stdout
@@ -267,7 +259,7 @@ impl log::Log for Log2 {
             let open = "[".truecolor(0x87, 0x87, 0x87);
             let close = "]".truecolor(0x87, 0x87, 0x87);
             let line = format!(
-                "{open}{}{close} {open}{}{close} {module}{}",
+                "{open}{}{close} {open}{}{close} {module} {}",
                 Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
                 level,
                 record.args()
