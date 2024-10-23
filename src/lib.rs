@@ -305,8 +305,22 @@ impl Handle {
         crate::set_level(level);
     }
 
-    pub fn redirect(&mut self, path: String) {
-        let _ = self.tx.send(Action::Redirect(path));
+    pub fn redirect(&mut self, path: &str) {
+        // create directory
+        let dir = std::path::Path::new(path);
+        if let Some(dir) = dir.parent() {
+            let _ = std::fs::create_dir_all(&dir);
+        }
+
+        // check file, panic if error
+        std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+            .expect("error to open file");
+
+        // redirect log file
+        let _ = self.tx.send(Action::Redirect(path.into()));
     }
 }
 
