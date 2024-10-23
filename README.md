@@ -39,9 +39,9 @@ use log2::*;
 
 fn main() {
     let _log2 = log2::stdout()
-		.module(false)
-		.level("info")
-		.start();
+                .module(false)
+                .level("info")
+                .start();
 
     trace!("send order request to server");
     debug!("receive order response");
@@ -69,7 +69,8 @@ fn main() {
                 .size(100*1024*1024)
                 .rotate(20)
                 .tee(true)
-		.module(true)
+                .module(true)
+                .module_filter(|module| module.contains("_"))
                 .start();
 
     // out-of-the-box way

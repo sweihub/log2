@@ -258,9 +258,9 @@ impl log::Log for Log2 {
         }
 
         // module
-        let mut origin = record.file().unwrap_or("unknown").to_string();
+        let mut origin = String::new();
         if self.module {
-            origin = format!("[{}]", module);
+            origin = format!("[{}] ", module);
         }
 
         // stdout
@@ -269,7 +269,7 @@ impl log::Log for Log2 {
             let open = "[".truecolor(0x87, 0x87, 0x87);
             let close = "]".truecolor(0x87, 0x87, 0x87);
             let line = format!(
-                "{open}{}{close} {open}{}{close} {origin} {}",
+                "{open}{}{close} {open}{}{close} {origin}{}",
                 Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
                 level,
                 record.args()
@@ -280,7 +280,7 @@ impl log::Log for Log2 {
         // file
         if self.path.len() > 0 {
             let line = format!(
-                "[{}] [{}] {origin} {}\n",
+                "[{}] [{}] {origin}{}\n",
                 Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
                 record.level(),
                 record.args()
