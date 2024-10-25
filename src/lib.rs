@@ -134,6 +134,7 @@ enum Action {
     Tee(String),
     Flush,
     Exit,
+    Redirect(String),
 }
 
 /// handle for terminating log2
@@ -305,6 +306,24 @@ impl Handle {
     pub fn set_level<T: fmt::Display>(&self, level: T) {
         crate::set_level(level);
     }
+
+    pub fn redirect(&mut self, path: &str) {
+        // create directory
+        let dir = std::path::Path::new(path);
+        if let Some(dir) = dir.parent() {
+            let _ = std::fs::create_dir_all(&dir);
+        }
+
+        // check file, panic if error
+        std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+            .expect("error to open file");
+
+        // redirect log file
+        let _ = self.tx.send(Action::Redirect(path.into()));
+    }
 }
 
 impl Drop for Handle {
@@ -349,7 +368,7 @@ fn now() -> u64 {
         .as_secs()
 }
 
-fn worker(ctx: Context) -> Result<(), std::io::Error> {
+fn worker(mut ctx: Context) -> Result<(), std::io::Error> {
     let mut target: Option<std::fs::File> = None;
     let mut size: u64 = 0;
     let mut last = size;
@@ -392,6 +411,12 @@ fn worker(ctx: Context) -> Result<(), std::io::Error> {
                         file.flush()?;
                     }
                     break;
+                }
+                Action::Redirect(path) => {
+                    ctx.path = path;
+                    let file = rotate(&ctx)?;
+                    size = file.metadata()?.len();
+                    target = Some(file);
                 }
             }
         }
