@@ -39,7 +39,7 @@
 //!
 //!fn main() {
 //!let _log2 = log2::stdout()
-//!.module(true)
+//!.module(false)
 //!.level("info")
 //!.start();
 //!
@@ -64,12 +64,13 @@
 //!// configurable way:
 //!// - log to file, file size: 100 MB, rotate: 20
 //!// - tee to stdout
-//!// - show module path
+//!// - show module path, default is true
 //!let _log2 = log2::open("log.txt")
 //!.size(100*1024*1024)
 //!.rotate(20)
 //!.tee(true)
 //!.module(true)
+//!.module_filter(|module| module.contains("_"))
 //!.start();
 //!
 //!// out-of-the-box way
