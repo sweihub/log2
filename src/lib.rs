@@ -307,6 +307,7 @@ impl Handle {
         crate::set_level(level);
     }
 
+    /// redirect the output file
     pub fn redirect(&mut self, path: &str) {
         // create directory
         let dir = std::path::Path::new(path);
