@@ -32,7 +32,7 @@
 //!
 //!![Screnshot of log2 output](images/output.png)
 //!
-//!Show module path, and set log level.
+//!Hide module path, and set log level.
 //!
 //!```rust
 //!use log2::*;
@@ -55,7 +55,7 @@
 //!## Log to file
 //!
 //!`log2` with default file size 100MB, max file count 10, you can change as you like. Note the `_log2` will
-//!stop the log2 instance when it is out of the scope
+//!stop the log2 instance when it is out of the scope.
 //!
 //!```rust
 //!use log2::*;
@@ -65,6 +65,7 @@
 //!// - log to file, file size: 100 MB, rotate: 20
 //!// - tee to stdout
 //!// - show module path, default is true
+//!// - filter with matched module
 //!let _log2 = log2::open("log.txt")
 //!.size(100*1024*1024)
 //!.rotate(20)
