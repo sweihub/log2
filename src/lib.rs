@@ -71,7 +71,7 @@
 //!.rotate(20)
 //!.tee(true)
 //!.module(true)
-//!.module_filter(|module| module.contains("_"))
+//!.module_filter(|module| module.contains(""))
 //!.start();
 //!
 //!// out-of-the-box way
