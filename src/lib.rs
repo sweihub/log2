@@ -152,6 +152,7 @@ pub struct Log2 {
     path: String,
     tee: bool,
     module: bool,
+    line: bool,
     filesize: u64,
     count: usize,
     level: String,
@@ -183,6 +184,7 @@ impl Log2 {
             path: String::new(),
             tee: false,
             module: true,
+            line: true,
             filesize: 100 * 1024 * 1024,
             count: 10,
             level: String::new(),
@@ -192,6 +194,13 @@ impl Log2 {
 
     pub fn module(mut self, show: bool) -> Log2 {
         self.module = show;
+        self.line = false;
+        self
+    }
+
+    pub fn module_with_line(mut self, show: bool) -> Log2 {
+        self.module = show;
+        self.line = show;
         self
     }
 
@@ -252,6 +261,9 @@ impl log::Log for Log2 {
 
     fn log(&self, record: &Record) {
         let module = record.module_path().unwrap_or("unknown");
+        let line = record.line()
+            .map(|l| l.to_string())
+            .unwrap_or_default();
 
         // module filter
         if let Some(filter) = &self.module_filter {
@@ -263,7 +275,12 @@ impl log::Log for Log2 {
         // module
         let mut origin = String::new();
         if self.module {
-            origin = format!("[{}] ", module);
+            let mut content = String::new();
+            content.push_str(module);
+            if self.line {
+                content.push_str(&format!(":{}", line));
+            }
+            origin.push_str(&format!("[{}] ", content));
         }
 
         // stdout
