@@ -65,13 +65,19 @@
 //!// - log to file, file size: 100 MB, rotate: 20
 //!// - tee to stdout
 //!// - show module path, default is true
+//!// - show module line, default is false
 //!// - filter with matched module
+//!// - enable gzip compression for aged file
+//!// - custom fomatter support
 //!let _log2 = log2::open("log.txt")
 //!.size(100*1024*1024)
 //!.rotate(20)
 //!.tee(true)
 //!.module(true)
+//!.module_with_line(true)
 //!.module_filter(|module| module.contains(""))
+//!.compress(false)
+//!.format(|record, tee| format!("[{}] [{}] {}", chrono::Local::now(), record.level(), record.args()))
 //!.start();
 //!
 //!// out-of-the-box way
@@ -100,11 +106,30 @@
 //!log.8.txt
 //!log.9.txt
 //!```
+//!
+//!Output compressed files
+//!
+//!```
+//!log.txt
+//!log.1.txt.gz
+//!log.2.txt.gz
+//!log.3.txt.gz
+//!log.4.txt.gz
+//!log.5.txt.gz
+//!log.6.txt.gz
+//!log.7.txt.gz
+//!log.8.txt.gz
+//!log.9.txt.gz
+//!```
 use chrono::Local;
 use colored::*;
 use core::fmt;
-use log::{Level, LevelFilter, Metadata, Record};
-use std::{io::Write, thread::JoinHandle};
+use flate2::write::GzEncoder;
+use flate2::Compression;
+use log::{LevelFilter, Metadata, Record};
+use std::fs::File;
+use std::io::{self, Read, Write};
+use std::thread::JoinHandle;
 
 /// log macros
 pub use log::{debug, error, info, trace, warn};
@@ -113,7 +138,7 @@ pub use log::{debug, error, info, trace, warn};
 #[allow(non_camel_case_types)]
 pub type level = LevelFilter;
 
-fn get_level(level: String) -> LevelFilter {
+fn get_level(level: &str) -> LevelFilter {
     let level = level.to_lowercase();
     match &*level {
         "debug" => level::Debug,
@@ -128,7 +153,7 @@ fn get_level(level: String) -> LevelFilter {
 
 /// set the log level, the input can be both enum or name
 pub fn set_level<T: fmt::Display>(level: T) {
-    log::set_max_level(get_level(level.to_string()));
+    log::set_max_level(get_level(&level.to_string()));
 }
 
 enum Action {
@@ -156,7 +181,9 @@ pub struct Log2 {
     filesize: u64,
     count: usize,
     level: String,
+    compression: bool,
     module_filter: Option<Box<dyn Fn(&str) -> bool + Send>>,
+    formatter: Option<Box<dyn Fn(&Record, bool) -> String + Send>>,
 }
 
 struct Context {
@@ -164,6 +191,7 @@ struct Context {
     path: String,
     size: u64,
     count: usize,
+    compression: bool,
 }
 
 impl Log2 {
@@ -188,30 +216,32 @@ impl Log2 {
             filesize: 100 * 1024 * 1024,
             count: 10,
             level: String::new(),
+            compression: false,
             module_filter: None,
+            formatter: None,
         }
     }
 
-    pub fn module(mut self, show: bool) -> Log2 {
+    pub fn module(mut self, show: bool) -> Self {
         self.module = show;
         self.line = false;
         self
     }
 
-    pub fn module_with_line(mut self, show: bool) -> Log2 {
+    pub fn module_with_line(mut self, show: bool) -> Self {
         self.module = show;
         self.line = show;
         self
     }
 
     // split the output to stdout
-    pub fn tee(mut self, stdout: bool) -> Log2 {
+    pub fn tee(mut self, stdout: bool) -> Self {
         self.tee = stdout;
         self
     }
 
     /// setup the maximum size for each file
-    pub fn size(mut self, filesize: u64) -> Log2 {
+    pub fn size(mut self, filesize: u64) -> Self {
         if self.count <= 1 {
             self.filesize = std::u64::MAX;
         } else {
@@ -221,7 +251,7 @@ impl Log2 {
     }
 
     /// setup the rotate count
-    pub fn rotate(mut self, count: usize) -> Log2 {
+    pub fn rotate(mut self, count: usize) -> Self {
         self.count = count;
         if self.count <= 1 {
             self.filesize = std::u64::MAX;
@@ -229,9 +259,17 @@ impl Log2 {
         self
     }
 
-    /// provide a way to filter by module
-    pub fn module_filter(mut self, filter: impl Fn(&str) -> bool + Send + 'static) -> Log2 {
+    /// provide a way to filter by module name
+    /// return true to include.
+    pub fn module_filter(mut self, filter: impl Fn(&str) -> bool + Send + 'static) -> Self {
         self.module_filter = Some(Box::new(filter));
+        self
+    }
+
+    /// custom content formatter (record:&Record, tee:bool)
+    /// you can return different content for the tee flag, maybe colorful output.
+    pub fn format<F: Fn(&Record, bool) -> String + Send + 'static>(mut self, formatter: F) -> Self {
+        self.formatter = Some(Box::new(formatter));
         self
     }
 
@@ -249,21 +287,25 @@ impl Log2 {
         }
         handle
     }
+
+    /// enable compression for aged file
+    pub fn compress(mut self, on: bool) -> Self {
+        self.compression = on;
+        self
+    }
 }
 
 unsafe impl Sync for Log2 {}
 
 impl log::Log for Log2 {
     fn enabled(&self, metadata: &Metadata) -> bool {
-        // this seems no effect at all
-        metadata.level() >= Level::Error
+        // for macro: log_enabled!
+        let n = get_level(&self.level);
+        metadata.level() >= n
     }
 
     fn log(&self, record: &Record) {
         let module = record.module_path().unwrap_or("unknown");
-        let line = record.line()
-            .map(|l| l.to_string())
-            .unwrap_or_default();
 
         // module filter
         if let Some(filter) = &self.module_filter {
@@ -275,37 +317,50 @@ impl log::Log for Log2 {
         // module
         let mut origin = String::new();
         if self.module {
-            let mut content = String::new();
-            content.push_str(module);
+            let mut marker = String::new();
+            marker.push_str(module);
             if self.line {
-                content.push_str(&format!(":{}", line));
+                let num = record.line().map(|l| l.to_string()).unwrap_or_default();
+                marker.push_str(&format!(":{}", num));
             }
-            origin.push_str(&format!("[{}] ", content));
+            origin.push_str(&format!("[{}] ", marker));
         }
 
         // stdout
         if self.tee {
-            let level = &self.levels[record.level() as usize];
-            let open = "[".truecolor(0x87, 0x87, 0x87);
-            let close = "]".truecolor(0x87, 0x87, 0x87);
-            let line = format!(
-                "{open}{}{close} {open}{}{close} {origin}{}",
-                Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
-                level,
-                record.args()
-            );
-            let _ = self.tx.send(Action::Tee(line));
+            let content;
+            // custom formatter
+            if let Some(format) = &self.formatter {
+                content = format(record, true);
+            } else {
+                let level = &self.levels[record.level() as usize];
+                let open = "[".truecolor(0x87, 0x87, 0x87);
+                let close = "]".truecolor(0x87, 0x87, 0x87);
+                content = format!(
+                    "{open}{}{close} {open}{}{close} {origin}{}",
+                    Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
+                    level,
+                    record.args()
+                );
+            }
+            let _ = self.tx.send(Action::Tee(content));
         }
 
         // file
         if self.path.len() > 0 {
-            let line = format!(
-                "[{}] [{}] {origin}{}\n",
-                Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
-                record.level(),
-                record.args()
-            );
-            let _ = self.tx.send(Action::Write(line));
+            let content;
+            // custom formatter
+            if let Some(format) = &self.formatter {
+                content = format(record, false);
+            } else {
+                content = format!(
+                    "[{}] [{}] {origin}{}\n",
+                    Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
+                    record.level(),
+                    record.args()
+                );
+            }
+            let _ = self.tx.send(Action::Write(content));
         }
     }
 
@@ -363,13 +418,18 @@ fn rotate(ctx: &Context) -> Result<std::fs::File, std::io::Error> {
     }
 
     if size >= ctx.size {
+        // maintain:
+        // log.8.txt -> log.9.txt
+        // log.7.txt -> log.8.txt
+        // ...
+        // log.txt   -> log.1.txt
         for i in (0..ctx.count - 1).rev() {
-            let mut a = format!("{prefix}.{}{suffix}", i);
+            let mut from = format!("{prefix}.{}{suffix}", i);
             if i == 0 {
-                a = ctx.path.clone();
+                from = ctx.path.clone();
             }
-            let b = format!("{prefix}.{}{suffix}", i + 1);
-            let _ = std::fs::rename(&a, &b);
+            let to = format!("{prefix}.{}{suffix}", i + 1);
+            maintain(&ctx, &from, &to, i);
         }
     }
 
@@ -379,6 +439,58 @@ fn rotate(ctx: &Context) -> Result<std::fs::File, std::io::Error> {
         .open(&ctx.path)?;
 
     Ok(file)
+}
+
+fn maintain(ctx: &Context, from: &str, to: &str, index: usize) {
+    if ctx.compression {
+        // compress:
+        // log.8.txt.gz -> log.9.txt.gz
+        // log.7.txt.gz -> log.8.txt.gz
+        // ...
+        // log.txt      -> log.1.txt.gz
+        if index == 0 {
+            // log.txt -> log.1.txt.gz
+            if let Ok(_) = compress_file(from, to) {
+                let _ = std::fs::remove_file(from);
+            }
+        } else {
+            let from = format!("{}.gz", from);
+            let to = format!("{}.gz", to);
+            let _ = std::fs::rename(&from, &to);
+        }
+    } else {
+        // rename:
+        // log.8.txt -> log.9.txt
+        // log.7.txt -> log.8.txt
+        // ...
+        // log.txt   -> log.1.txt
+        let _ = std::fs::rename(&from, &to);
+    }
+}
+
+fn compress_file(from: &str, to: &str) -> Result<(), io::Error> {
+    let to = if to.ends_with(".gz") {
+        to.to_string()
+    } else {
+        format!("{}.gz", to)
+    };
+
+    let mut input = File::open(from)?;
+    let output = File::create(&to)?;
+    let mut encoder = GzEncoder::new(output, Compression::default());
+    let mut buffer = vec![0; 8192];
+
+    loop {
+        let bytes_read = input.read(&mut buffer)?;
+        if bytes_read == 0 {
+            break;
+        }
+        encoder.write_all(&buffer[0..bytes_read])?;
+    }
+
+    encoder.finish()?;
+
+    Ok(())
 }
 
 fn now() -> u64 {
@@ -411,6 +523,7 @@ fn worker(mut ctx: Context) -> Result<(), std::io::Error> {
                     file.write_all(buf)?;
                     size += buf.len() as u64;
                     if size >= ctx.size {
+                        drop(target);
                         let f = rotate(&ctx)?;
                         size = f.metadata()?.len();
                         target = Some(f);
@@ -434,6 +547,7 @@ fn worker(mut ctx: Context) -> Result<(), std::io::Error> {
                 }
                 Action::Redirect(path) => {
                     ctx.path = path;
+                    drop(target);
                     let file = rotate(&ctx)?;
                     size = file.metadata()?.len();
                     target = Some(file);
@@ -497,6 +611,7 @@ fn start_log2(mut logger: Log2) -> Handle {
         path: logger.path.clone(),
         size: logger.filesize,
         count: logger.count,
+        compression: logger.compression,
     };
 
     let mut handle = Handle {

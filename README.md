@@ -65,13 +65,19 @@ fn main() {
     // - log to file, file size: 100 MB, rotate: 20
     // - tee to stdout
     // - show module path, default is true
+    // - show module line, default is false
     // - filter with matched module
+    // - enable gzip compression for aged file
+    // - custom fomatter support
     let _log2 = log2::open("log.txt")
                 .size(100*1024*1024)
                 .rotate(20)
                 .tee(true)
                 .module(true)
+                .module_with_line(true)
                 .module_filter(|module| module.contains(""))
+                .compress(false)
+                .format(|record, tee| format!("[{}] [{}] {}", chrono::Local::now(), record.level(), record.args()))
                 .start();
 
     // out-of-the-box way
@@ -99,4 +105,19 @@ log.6.txt
 log.7.txt
 log.8.txt
 log.9.txt
+```
+
+Output compressed files
+
+```
+log.txt
+log.1.txt.gz
+log.2.txt.gz
+log.3.txt.gz
+log.4.txt.gz
+log.5.txt.gz
+log.6.txt.gz
+log.7.txt.gz
+log.8.txt.gz
+log.9.txt.gz
 ```

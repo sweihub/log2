@@ -1,14 +1,22 @@
 use log2::*;
 
 fn main() {
+    // simple
+    // let _log2 = log2::start();
+
+    // configurable
     let _log2 = log2::stdout()
-        .level("warn")
+        .level("trace")
         .module(false)
+        .module_with_line(true)
+        .module_filter(|m| !m.is_empty())
         .start();
 
+    /*
     log2::set_level(log2::level::Info);
     log2::set_level("debug");
-    _log2.set_level("trace");
+    log2::set_level("trace");
+    */
 
     trace!("send order request to server");
     debug!("receive order response");
