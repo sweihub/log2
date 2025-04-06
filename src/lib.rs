@@ -77,7 +77,7 @@
 //!.module_with_line(true)
 //!.module_filter(|module| module.contains(""))
 //!.compress(false)
-//!.format(|record, tee| format!("[{}] [{}] {}", chrono::Local::now(), record.level(), record.args()))
+//!.format(|record, tee| format!("[{}] [{}] {}\n", chrono::Local::now(), record.level(), record.args()))
 //!.start();
 //!
 //!// out-of-the-box way
@@ -337,7 +337,7 @@ impl log::Log for Log2 {
                 let open = "[".truecolor(0x87, 0x87, 0x87);
                 let close = "]".truecolor(0x87, 0x87, 0x87);
                 content = format!(
-                    "{open}{}{close} {open}{}{close} {origin}{}",
+                    "{open}{}{close} {open}{}{close} {origin}{}\n",
                     Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
                     level,
                     record.args()
@@ -530,7 +530,7 @@ fn worker(mut ctx: Context) -> Result<(), std::io::Error> {
                     }
                 }
                 Action::Tee(line) => {
-                    println!("{line}");
+                    print!("{line}");
                 }
                 Action::Flush => {
                     if target.is_some() {

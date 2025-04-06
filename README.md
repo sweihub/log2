@@ -77,7 +77,7 @@ fn main() {
                 .module_with_line(true)
                 .module_filter(|module| module.contains(""))
                 .compress(false)
-                .format(|record, tee| format!("[{}] [{}] {}", chrono::Local::now(), record.level(), record.args()))
+                .format(|record, tee| format!("[{}] [{}] {}\n", chrono::Local::now(), record.level(), record.args()))
                 .start();
 
     // out-of-the-box way
