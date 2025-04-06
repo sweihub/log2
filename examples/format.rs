@@ -23,7 +23,7 @@ fn custom(record: &Record, tee: bool) -> String {
         let open = "[".truecolor(0x87, 0x87, 0x87);
         let close = "]".truecolor(0x87, 0x87, 0x87);
         content = format!(
-            "CUSTOM {open}{}{close} {open}{}{close} {origin}{}",
+            "CUSTOM {open}{}{close} {open}{}{close} {origin}{}\n",
             Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
             level,
             record.args()
