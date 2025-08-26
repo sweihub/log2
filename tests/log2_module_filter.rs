@@ -1,8 +1,8 @@
-use log2::*;
+const PATH: &str = "tests/log_filter.txt";
 
 #[test]
 fn module_filter() {
-    let _log2 = Log2::new()
+    let _log2 = log2::open(PATH)
         .tee(true)
         // only log messages from modules that contain "first"
         .module_filter(|module| module.contains("first"))
@@ -15,11 +15,11 @@ fn module_filter() {
         use log2::*;
 
         pub fn foo() {
-            trace!("send order request to server");
-            debug!("receive order response");
-            info!("order was executed");
-            warn!("network speed is slow");
-            error!("network connection was broken");
+            trace!("first: send order request to server");
+            debug!("first: receive order response");
+            info!("first: order was executed");
+            warn!("first: network speed is slow");
+            error!("first: network connection was broken");
         }
     }
 
@@ -27,11 +27,18 @@ fn module_filter() {
         use log2::*;
 
         pub fn bar() {
-            trace!("send order request to server");
-            debug!("receive order response");
-            info!("order was executed");
-            warn!("network speed is slow");
-            error!("network connection was broken");
+            trace!("second: send order request to server");
+            debug!("second: receive order response");
+            info!("second: order was executed");
+            warn!("second: network speed is slow");
+            error!("second: network connection was broken");
         }
     }
+
+    // Read the file to verify its content
+    let log_content = std::fs::read_to_string(PATH).expect("Failed to read the log file");
+    assert!(
+        !log_content.contains("second:"),
+        "Log module filter did not work"
+    );
 }
