@@ -243,7 +243,7 @@ impl Log2 {
     /// setup the maximum size for each file
     pub fn size(mut self, filesize: u64) -> Self {
         if self.count <= 1 {
-            self.filesize = std::u64::MAX;
+            self.filesize = u64::MAX;
         } else {
             self.filesize = filesize;
         }
@@ -254,7 +254,7 @@ impl Log2 {
     pub fn rotate(mut self, count: usize) -> Self {
         self.count = count;
         if self.count <= 1 {
-            self.filesize = std::u64::MAX;
+            self.filesize = u64::MAX;
         }
         self
     }
@@ -347,7 +347,7 @@ impl log::Log for Log2 {
         }
 
         // file
-        if self.path.len() > 0 {
+        if !self.path.is_empty() {
             let content;
             // custom formatter
             if let Some(format) = &self.formatter {
@@ -386,7 +386,7 @@ impl Handle {
         // create directory
         let dir = std::path::Path::new(path);
         if let Some(dir) = dir.parent() {
-            let _ = std::fs::create_dir_all(&dir);
+            let _ = std::fs::create_dir_all(dir);
         }
 
         // check file, panic if error
@@ -429,7 +429,7 @@ fn rotate(ctx: &Context) -> Result<std::fs::File, std::io::Error> {
                 from = ctx.path.clone();
             }
             let to = format!("{prefix}.{}{suffix}", i + 1);
-            maintain(&ctx, &from, &to, i);
+            maintain(ctx, &from, &to, i);
         }
     }
 
@@ -450,7 +450,7 @@ fn maintain(ctx: &Context, from: &str, to: &str, index: usize) {
         // log.txt      -> log.1.txt.gz
         if index == 0 {
             // log.txt -> log.1.txt.gz
-            if let Ok(_) = compress_file(from, to) {
+            if compress_file(from, to).is_ok() {
                 let _ = std::fs::remove_file(from);
             }
         } else {
@@ -464,7 +464,7 @@ fn maintain(ctx: &Context, from: &str, to: &str, index: usize) {
         // log.7.txt -> log.8.txt
         // ...
         // log.txt   -> log.1.txt
-        let _ = std::fs::rename(&from, &to);
+        let _ = std::fs::rename(from, to);
     }
 }
 
@@ -505,7 +505,7 @@ fn worker(mut ctx: Context) -> Result<(), std::io::Error> {
     let mut size: u64 = 0;
     let mut last = size;
 
-    if ctx.path.len() > 0 {
+    if !ctx.path.is_empty() {
         let file = rotate(&ctx)?;
         size = file.metadata()?.len();
         target = Some(file);
@@ -533,14 +533,12 @@ fn worker(mut ctx: Context) -> Result<(), std::io::Error> {
                     print!("{line}");
                 }
                 Action::Flush => {
-                    if target.is_some() {
-                        let file = target.as_mut().unwrap();
+                    if let Some(file) = &mut target {
                         file.flush()?;
                     }
                 }
                 Action::Exit => {
-                    if target.is_some() {
-                        let file = target.as_mut().unwrap();
+                    if let Some(file) = &mut target {
                         file.flush()?;
                     }
                     break;
@@ -555,11 +553,10 @@ fn worker(mut ctx: Context) -> Result<(), std::io::Error> {
             }
         }
         // flush every 1s
-        if size > last && target.is_some() {
-            let n = now();
-            if n - ts >= 1 {
+        if let Some(file) = &mut target {
+            let n: u64 = now();
+            if size > last && n - ts >= 1 {
                 ts = n;
-                let file = target.as_mut().unwrap();
                 file.flush()?;
                 last = size;
             }
@@ -588,7 +585,7 @@ pub fn open(path: &str) -> Log2 {
     // create directory
     let dir = std::path::Path::new(path);
     if let Some(dir) = dir.parent() {
-        let _ = std::fs::create_dir_all(&dir);
+        let _ = std::fs::create_dir_all(dir);
     }
 
     // check file, panic if error
@@ -630,5 +627,5 @@ fn start_log2(mut logger: Log2) -> Handle {
     log::set_boxed_logger(Box::new(logger)).expect("error to initialize log2");
     log::set_max_level(LevelFilter::Trace);
 
-    return handle;
+    handle
 }
