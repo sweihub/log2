@@ -129,6 +129,8 @@ use flate2::Compression;
 use log::{LevelFilter, Metadata, Record};
 use std::fs::File;
 use std::io::{self, Read, Write};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::thread::JoinHandle;
 
 /// log macros
@@ -164,10 +166,11 @@ enum Action {
     Redirect(String),
 }
 
-/// handle for terminating log2
+/// handle for manipulating log2
 pub struct Handle {
     tx: std::sync::mpsc::Sender<Action>,
     thread: Option<JoinHandle<()>>,
+    persistent: Arc<AtomicBool>, // log to file marker
 }
 
 pub struct Log2 {
@@ -175,6 +178,7 @@ pub struct Log2 {
     rx: Option<std::sync::mpsc::Receiver<Action>>,
     levels: [ColoredString; 6],
     path: String,
+    persistent: Arc<AtomicBool>, // log to file marker
     tee: bool,
     module: bool,
     line: bool,
@@ -210,6 +214,7 @@ impl Log2 {
             rx: Some(rx),
             levels,
             path: String::new(),
+            persistent: Arc::new(AtomicBool::new(false)),
             tee: false,
             module: true,
             line: true,
@@ -347,7 +352,7 @@ impl log::Log for Log2 {
         }
 
         // file
-        if !self.path.is_empty() {
+        if self.persistent.load(Ordering::SeqCst) {
             let content;
             // custom formatter
             if let Some(format) = &self.formatter {
@@ -396,8 +401,15 @@ impl Handle {
             .open(path)
             .expect("error to open file");
 
+        // update file marker, allow redirect stdout to file
+        self.persistent.store(true, Ordering::SeqCst);
+
         // redirect log file
         let _ = self.tx.send(Action::Redirect(path.into()));
+    }
+
+    pub fn flush(&self) {
+        let _ = self.tx.send(Action::Flush);
     }
 }
 
@@ -596,7 +608,8 @@ pub fn open(path: &str) -> Log2 {
         .expect("error to open file");
 
     let mut logger = Log2::new();
-    logger.path = path.into();
+    logger.path = path.to_string();
+    logger.persistent = Arc::new(AtomicBool::new(true));
     logger
 }
 
@@ -614,6 +627,7 @@ fn start_log2(mut logger: Log2) -> Handle {
     let mut handle = Handle {
         tx: logger.tx.clone(),
         thread: None,
+        persistent: logger.persistent.clone(),
     };
 
     let thread = std::thread::spawn(move || {
@@ -624,7 +638,8 @@ fn start_log2(mut logger: Log2) -> Handle {
 
     handle.thread = Some(thread);
 
-    log::set_boxed_logger(Box::new(logger)).expect("error to initialize log2");
+    log::set_boxed_logger(Box::new(logger))
+        .expect("error to initialize log2, once instance per process!");
     log::set_max_level(LevelFilter::Trace);
 
     handle
