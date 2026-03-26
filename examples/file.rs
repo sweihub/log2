@@ -1,7 +1,7 @@
 use log2::*;
 
 fn main() {
-    let _log2 = log2::open("log.txt")
+    log2::open("log.txt")
         .size(1024)
         .rotate(10)
         .compress(true)

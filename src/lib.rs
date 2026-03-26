@@ -18,7 +18,7 @@
 //!use log2::*;
 //!
 //!fn main() {
-//!let _log2 = log2::start();
+//!log2::start();
 //!
 //!trace!("send order request to server");
 //!debug!("receive order response");
@@ -38,7 +38,7 @@
 //!use log2::*;
 //!
 //!fn main() {
-//!let _log2 = log2::stdout()
+//!log2::stdout()
 //!.module(false)
 //!.level("info")
 //!.start();
@@ -54,8 +54,7 @@
 //!
 //!## Log to file
 //!
-//!`log2` with default file size 100MB, max file count 10, you can change as you like. Note the `_log2` will
-//!stop the log2 instance when it is out of the scope.
+//!`log2` with default file size 100MB, max file count 10, you can change as you like.
 //!
 //!```rust
 //!use log2::*;
@@ -69,7 +68,7 @@
 //!// - filter with matched module
 //!// - enable gzip compression for aged file
 //!// - custom fomatter support
-//!let _log2 = log2::open("log.txt")
+//!log2::open("log.txt")
 //!.size(100*1024*1024)
 //!.rotate(20)
 //!.tee(true)
@@ -81,7 +80,7 @@
 //!.start();
 //!
 //!// out-of-the-box way
-//!// let _log2 = log2::open("log.txt").start();
+//!// log2::open("log.txt").start();
 //!
 //!trace!("send order request to server");
 //!debug!("receive order response");
@@ -131,7 +130,10 @@ use std::fs::File;
 use std::io::{self, Read, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::RwLock;
 use std::thread::JoinHandle;
+
+static HANDLE: RwLock<Option<Handle>> = RwLock::new(None);
 
 /// log macros
 pub use log::{debug, error, info, trace, warn};
@@ -284,13 +286,14 @@ impl Log2 {
     }
 
     /// start the log2 instance
-    pub fn start(self) -> Handle {
+    /// the logger lives for the entire program duration, no need to store the handle
+    pub fn start(self) {
         let n = self.level.clone();
         let handle = start_log2(self);
         if !n.is_empty() {
             set_level(n);
         }
-        handle
+        *HANDLE.write().unwrap() = Some(handle);
     }
 
     /// enable compression for aged file
@@ -579,10 +582,22 @@ fn worker(mut ctx: Context) -> Result<(), std::io::Error> {
 }
 
 /// start the log2 instance by default
-pub fn start() -> Handle {
+/// the logger lives for the entire program duration, no need to store the handle
+pub fn start() {
     let mut logger = Log2::new();
     logger.tee = true;
-    start_log2(logger)
+    let handle = start_log2(logger);
+    *HANDLE.write().unwrap() = Some(handle);
+}
+
+/// get the global log2 handle for manipulation
+pub fn handle() -> Option<std::sync::RwLockWriteGuard<'static, Option<Handle>>> {
+    HANDLE.write().ok()
+}
+
+/// reset the global log2 handle (useful for testing)
+pub fn reset() {
+    *HANDLE.write().unwrap() = None;
 }
 
 /// create a log2 instance to stdout
@@ -638,9 +653,9 @@ fn start_log2(mut logger: Log2) -> Handle {
 
     handle.thread = Some(thread);
 
-    log::set_boxed_logger(Box::new(logger))
-        .expect("error to initialize log2, once instance per process!");
-    log::set_max_level(LevelFilter::Trace);
+    if log::set_boxed_logger(Box::new(logger)).is_ok() {
+        log::set_max_level(LevelFilter::Trace);
+    }
 
     handle
 }

@@ -2,7 +2,9 @@ const PATH: &str = "tests/log_filter.txt";
 
 #[test]
 fn module_filter() {
-    let _log2 = log2::open(PATH)
+    let _ = std::fs::remove_file(PATH);
+
+    log2::open(PATH)
         .tee(true)
         // only log messages from modules that contain "first"
         .module_filter(|module| module.contains("first"))

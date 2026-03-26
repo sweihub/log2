@@ -42,7 +42,7 @@ fn custom(record: &Record, tee: bool) -> String {
 }
 
 fn main() {
-    let _log2 = log2::open("custom.txt")
+    log2::open("custom.txt")
         .tee(true)
         .level("trace")
         .module(false)

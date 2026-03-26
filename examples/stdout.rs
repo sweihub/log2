@@ -2,10 +2,10 @@ use log2::*;
 
 fn main() {
     // simple
-    // let _log2 = log2::start();
+    // log2::start();
 
     // configurable
-    let _log2 = log2::stdout()
+    log2::stdout()
         .level("trace")
         .module(false)
         .module_with_line(true)

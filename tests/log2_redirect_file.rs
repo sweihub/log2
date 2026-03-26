@@ -7,7 +7,7 @@ const REDIRECT: &str = "tests/redirect_file.txt";
 
 #[test]
 fn redirect_log_file() {
-    let mut log2 = log2::open(PATH).module(true).tee(true).start();
+    log2::open(PATH).module(true).tee(true).start();
 
     trace!("send order request to server");
     debug!("receive order response");
@@ -15,7 +15,11 @@ fn redirect_log_file() {
     warn!("network speed is slow");
     error!("network connection was broken");
 
-    log2.redirect(REDIRECT);
+    if let Some(mut handle) = log2::handle() {
+        if let Some(h) = handle.as_mut() {
+            h.redirect(REDIRECT);
+        }
+    }
 
     trace!("send order request to server");
     debug!("receive order response");
@@ -24,7 +28,11 @@ fn redirect_log_file() {
     error!("network connection was broken");
 
     // data should be flushed
-    log2.flush();
+    if let Some(handle) = log2::handle() {
+        if let Some(h) = handle.as_ref() {
+            h.flush();
+        }
+    }
     std::thread::sleep(Duration::from_millis(1000));
 
     // Check if the file was created

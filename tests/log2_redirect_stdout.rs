@@ -5,7 +5,7 @@ const REDIRECT: &str = "tests/redirect_stdout.txt";
 
 #[test]
 fn redirect_stdout_file() {
-    let mut log2 = log2::start();
+    log2::start();
 
     trace!("send order request to server");
     debug!("receive order response");
@@ -13,7 +13,11 @@ fn redirect_stdout_file() {
     warn!("network speed is slow");
     error!("network connection was broken");
 
-    log2.redirect(REDIRECT);
+    if let Some(mut handle) = log2::handle() {
+        if let Some(h) = handle.as_mut() {
+            h.redirect(REDIRECT);
+        }
+    }
 
     trace!("file: send order request to server");
     debug!("file: receive order response");
@@ -22,7 +26,11 @@ fn redirect_stdout_file() {
     error!("file: network connection was broken");
 
     // data should be flushed
-    log2.flush();
+    if let Some(handle) = log2::handle() {
+        if let Some(h) = handle.as_ref() {
+            h.flush();
+        }
+    }
     std::thread::sleep(Duration::from_millis(1000));
 
     // Check if the file was created
