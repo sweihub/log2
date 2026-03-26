@@ -120,6 +120,31 @@
 //!log.8.txt.gz
 //!log.9.txt.gz
 //!```
+//!
+//!## Filter logs by module
+//!
+//!Use `app!()` macro to get the package name from Cargo.toml, and `solo()` to filter logs to only show those from the current application.
+//!
+//!```rust
+//!use log2::*;
+//!
+//!fn main() {
+//!log2::stdout()
+//!    .solo(app!())
+//!    .start();
+//!
+//!info!("this will be shown");
+//!}
+//!```
+//!
+//!This is shorthand for:
+//!
+//!```rust
+//!log2::stdout()
+//!    .module_filter(|m| m.starts_with(app!()))
+//!    .start();
+//!```
+//!
 use chrono::Local;
 use colored::*;
 use core::fmt;
@@ -137,6 +162,25 @@ static HANDLE: RwLock<Option<Handle>> = RwLock::new(None);
 
 /// log macros
 pub use log::{debug, error, info, trace, warn};
+
+/// Get the application name from Cargo.toml package name.
+/// Expands to `env!("CARGO_PKG_NAME")`.
+///
+/// # Example
+///
+/// ```rust
+/// use log2::*;
+///
+/// fn main() {
+///     println!("Package name: {}", app!());
+/// }
+/// ```
+#[macro_export]
+macro_rules! app {
+    () => {
+        env!("CARGO_PKG_NAME")
+    };
+}
 
 /// log levels
 #[allow(non_camel_case_types)]
@@ -270,6 +314,28 @@ impl Log2 {
     /// return true to include.
     pub fn module_filter(mut self, filter: impl Fn(&str) -> bool + Send + 'static) -> Self {
         self.module_filter = Some(Box::new(filter));
+        self
+    }
+
+    /// Filter to only show logs from the current application (package).
+    /// Shorthand for `.module_filter(|m| m.starts_with(app!()))`.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use log2::*;
+    ///
+    /// fn main() {
+    ///     log2::stdout()
+    ///         .solo(app!())
+    ///         .start();
+    ///
+    ///     info!("only logs from this package will be shown");
+    /// }
+    /// ```
+    pub fn solo(mut self, pkg_name: &str) -> Self {
+        let pkg_name = pkg_name.to_string();
+        self.module_filter = Some(Box::new(move |m| m.starts_with(&pkg_name)));
         self
     }
 
