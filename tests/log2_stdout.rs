@@ -3,7 +3,7 @@ use log2::*;
 // cargo test -- --nocapture
 #[test]
 fn log_to_stdout() {
-    log2::stdout().module(true).solo(app!()).start();
+    run!();
     trace!("send order request to server");
     debug!("receive order response");
     info!("order was executed");

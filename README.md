@@ -23,11 +23,41 @@ cargo add log2
 
 ### Log to stdout
 
+The `run!()` macro is the fastest way to get started. It starts logging to stdout
+and automatically filters to only show logs from your own crate, hiding noise from
+dependencies:
+
 ```rust
 use log2::*;
 
 fn main() {
-    log2::start();
+    run!();
+
+    info!("hello world");
+}
+```
+
+This is equivalent to:
+
+```rust
+log2::stdout()
+    .module_filter(|m: &str| {
+        let pkg = env!("CARGO_PKG_NAME");
+        m == pkg || m.starts_with(&format!("{}::", pkg))
+    })
+    .start();
+```
+
+For full control, use the `log2::stdout()` builder:
+
+```rust
+use log2::*;
+
+fn main() {
+    log2::stdout()
+        .level("info")
+        .module(true)
+        .start();
 
     info!("hello world");
 }
@@ -100,6 +130,13 @@ fn main() {
 | `log2::handle() -> Option<RwLockWriteGuard>` | Get the global handle for manipulation |
 | `log2::reset()` | Reset the global logger (useful for testing) |
 
+### Macros
+
+| Macro | Description |
+|-------|-------------|
+| `log2::run!()` | Start logging to stdout, filtered to the current package |
+| `log2::app!()` | Get the package name from `Cargo.toml` |
+
 ### Log2 Builder Methods
 
 | Method | Description | Default |
@@ -166,7 +203,20 @@ fn main() {
 
 ## Module Filtering
 
-Filter logs by module path:
+The `run!()` macro is the easiest way to filter logs to your own package:
+
+```rust
+use log2::*;
+
+fn main() {
+    run!();
+
+    my_crate::do_something();  // will be logged
+    other_crate::do_something(); // filtered out (not from your package)
+}
+```
+
+For custom filtering, use `.module_filter()`:
 
 ```rust
 use log2::*;
